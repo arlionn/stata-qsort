@@ -1,0 +1,24 @@
+v 0.1.0
+d
+d 'QSORT': Implementation of -sort- and -gsort- using C-plugins
+d
+d This package provides C-based implementations of Stata's -sort-
+d and -gsort- via -qsort-, a C-plugin that is basically a wrapper 
+d for C's qsort (quicksort) function.
+d
+d KW: sort
+d KW: gsort
+d KW: qsort
+d KW: quicksort
+d
+d Requires: Stata version 13.1
+d
+d Author: Mauricio Caceres Bravo
+d Support: email mauricio.caceres.bravo@gmail.com
+d
+d Distribution-Date: 20170730
+d
+f qsort.ado
+f qsort.sthlp
+f qsort_unix.plugin
+f qsort_unix_multi.plugin
