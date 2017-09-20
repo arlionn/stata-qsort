@@ -1,0 +1,75 @@
+
+  ___  ____  ____  ____  ____ (R)
+ /__    /   ____/   /   ____/
+___/   /   /___/   /   /___/   13.1   Copyright 1985-2013 StataCorp LP
+  Statistics/Data Analysis            StataCorp
+                                      4905 Lakeway Drive
+                                      College Station, Texas 77845 USA
+                                      800-STATA-PC        http://www.stata.com
+                                      979-696-4600        stata@stata.com
+                                      979-696-4601 (fax)
+
+Single-user Stata perpetual license:
+       Serial number:  301306294610
+         Licensed to:  Mauricio Caceres
+                       mauricio.caceres.bravo@gmail.com
+
+Notes:
+      1.  Command line editing disabled
+      2.  Stata running in batch mode
+
+Note:  Your site can add messages to the introduction by editing the file
+       stata.msg in the directory where Stata is installed.
+
+. do tmp.do 
+
+. version 13
+
+. clear all
+
+. set more off
+
+. set varabbrev off
+
+. * set seed 42
+. set seed 1729
+
+. set linesize 128
+
+. 
+. * sysuse auto,  clear
+. * set rmsg on
+. * clear
+. * set obs 1000000
+. * * set obs 100000
+. * gen x = floor(rnormal())
+. * gen y = rnormal()
+. * qui ralpha rstr, l(5)
+. * qui ralpha rst2, l(3)
+. * replace rstr = rstr + "s"
+. * replace rst2 = rst2 + "someting longer"
+. * gen double id2 = _n
+. * gen byte dummy = 0
+. * gen idx = _n
+. * save /tmp/qsort, replace
+. 
+. set rmsg on
+r; t=0.00 13:51:39
+
+. * use /tmp/qsort in 1/150000, clear
+. use /tmp/qsort, clear
+r; t=0.03 13:51:39
+
+. expand 5
+(4000000 observations created)
+r; t=0.11 13:51:39
+
+. gen rsort = runiform()
+r; t=0.09 13:51:40
+
+. * sort rstr x rst2 y rsort
+. * cap drop st_idx
+. * gen st_idx = _n
+. * sort idx
+. cap noi qsort rstr x rst2 y rsort, v b
+plugin call qsort_plugin rstr x rst2 y rsort id2 dummy idx, sort

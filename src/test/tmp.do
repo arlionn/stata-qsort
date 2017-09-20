@@ -9,8 +9,8 @@ set linesize 128
 * sysuse auto,  clear
 * set rmsg on
 * clear
-* * set obs 1000000
-* set obs 100000
+* set obs 1000000
+* * set obs 100000
 * gen x = floor(rnormal())
 * gen y = rnormal()
 * qui ralpha rstr, l(5)
@@ -23,10 +23,13 @@ set linesize 128
 * save /tmp/qsort, replace
 
 set rmsg on
+* use /tmp/qsort in 1/150000, clear
 use /tmp/qsort, clear
-sort rstr x rst2 y
-cap drop st_idx
-gen st_idx = _n
-sort idx
-qsort rstr x rst2 y, v b
-assert st_idx == _n
+expand 5
+gen rsort = runiform()
+* sort rstr x rst2 y rsort
+* cap drop st_idx
+* gen st_idx = _n
+* sort idx
+cap noi qsort rstr x rst2 y rsort, v b
+* assert st_idx == _n
