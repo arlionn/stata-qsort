@@ -62,31 +62,9 @@ STDLL stata_call(int argc, char *argv[])
         return (0);
     }
     else if ( strcmp(todo, "sort") == 0 ) {
+        // sf_msort handles whether to sort by integers or to do a generic sort
         if ( (rc = sf_parse_info(&st_info)) ) return (rc);
-
-        if ( st_info.integers_ok ) {
-            if ( st_info.verbose ) sf_printf("Sort by integers\n", st_info.kvars_sort_num);
-            return (42001);
-        }
-        else if ( st_info.sortvars_maxlen > 0 ) {
-            if ( st_info.sortvars_minlen > 0 ) {
-                if ( st_info.verbose ) sf_printf("Sort by strings\n", st_info.kvars_sort_str);
-                // if ( (rc = sf_ssort (&st_info)) );
-                return (42003);
-            }
-            else {
-                if ( st_info.verbose ) sf_printf("Sort by %d strings, %d numeric\n",
-                                                 st_info.kvars_sort_str, st_info.kvars_sort_num);
-                if ( (rc = sf_msort (&st_info)) ) return (rc);
-                return (42004);
-            }
-        }
-        else {
-            if ( st_info.verbose ) sf_printf("Sort by numeric\n", st_info.kvars_sort_num);
-            return (42002);
-            // if ( (rc = sf_dsort (&st_info)) );
-        }
-
+        if ( (rc = sf_msort (&st_info)) ) return (rc);
         return(0);
     }
 

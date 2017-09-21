@@ -1,16 +1,8 @@
 #include "qsort_generic.h"
 #include "quicksortMixedUnion.c"
 #include "quicksortMultiLevel.c"
+#include "radixSort.c"
 #include <unistd.h>
-
-#define GenCopyMixed(a, b, n) { \
-    long i = (n) / sizeof (char);  \
-    char *pi = (char *) (a);       \
-    char *pj = (char *) (b);       \
-    do {                           \
-        *pi++ = *pj++;             \
-    } while (--i > 0);             \
-}
 
 int sf_msort(struct StataInfo *st_info)
 {
@@ -59,114 +51,226 @@ int sf_msort(struct StataInfo *st_info)
         }
     }
 
-    // Read in the data
-    // ----------------
+    // Allocate space
+    // --------------
 
     ST_retcode rc ;
+    size_t sel;
     clock_t timer = clock();
 
-    /*********************************************************************
-     *                              Testing                              *
-     *********************************************************************/
-
-    // We do calloc because we can't always get a contiguous block of memory
-    // for everything we want. So st_dtax + i is a pointer to the ith block of
-    // size (allbytes + 2), which is contiguous and contains all our data!
-
-    size_t sel;
-    // void **st_dtax = calloc(N, (allbytes + 2) * sizeof(*st_dtax));
+    // It is leaner to use a union than an array of pointers or a structure
+    // void **st_dtax = calloc(N * kvars, sizeof(*st_dtax));
     MixedUnion *st_dtax = calloc(N * kvars, sizeof(*st_dtax));
-    //  void **st_dtax = calloc(N * kvars, sizeof(*st_dtax));
+    if ( st_dtax == NULL ) return (sf_oom_error("sf_msort", "st_dtax"));
 
+    // It is faster to allocate and zero all memory first
     for (i = 0; i < N; i++) {
         for (k = 0; k < kvars; k++) {
             sel = i * kvars + k;
             if ( (ilen = ltypes[k]) ) {
                 st_dtax[sel].cval = malloc((ilen + 1) * sizeof(char));
+                if ( st_dtax[sel].cval == NULL ) return (sf_oom_error("sf_msort", "st_dtax[sel].cval"));
                 memset (st_dtax[sel].cval, '\0', ilen + 1);
             }
             // else {
             //     st_dtax[sel] = malloc(sizeof(double));
-            //     allbytes += sizeof(double);
+            //     if ( st_dtax[sel].dval == NULL ) return (sf_oom_error("sf_msort", "st_dtax[sel].dval"));
             // }
         }
     }
 
-    for (i = 0; i < N; i++) {
-        for (k = 0; k < kvars; k++) {
-            sel = i * kvars + k;
-            if ( (ilen = ltypes[k]) ) {
-                // st_dtax[sel].cval = malloc((ilen + 1) * sizeof(char));
-                // memset (st_dtax[sel].cval, '\0', ilen + 1);
-                // memset (s, '\0', kmax);
-                // if ( (rc = SF_sdata(1 + k, i + in1, s)) ) return(rc);
-                // memcpy (st_dtax[sel].cval, s, strlen(s));
-                if ( (rc = SF_sdata(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
-            }
-            else {
-                if ( (rc = SF_vdata(1 + k, i + in1, &(st_dtax[sel].dval))) ) return(rc);
-                // if ( (rc = SF_vdata(1 + k, i + in1, &z)) ) return(rc);
-                // st_dtax[sel].dval = z;
-                // memcpy ((double *)st_dtax[sel], &z, sizeof(double));
-            }
-        }
-        // if (i < 12) {
-        //     printf("%d", i);
-        //     for (k = 0; k < kvars; k++) {
-        //         sel = i * kvars + k;
-        //         if ( (ilen = ltypes[k]) ) {
-        //             printf("\t%d (%lu is %s)", k, sel, st_dtax[sel].cval);
-        //         }
-        //         else 
-        //             printf("\t%d (%lu is %.4f)", k, sel, st_dtax[sel].dval);
-        //     }
-        //     printf("\n");
-        // }
-    }
+    // Read the data
+    // -------------
 
     double mib_dtax = N * kvars * sizeof(*st_dtax) / 1024 / 1024;
     double mib_all  = mib_dtax + N * strbytes * sizeof(char) / 1024 / 1024;
     if ( st_info->verbose ) sf_printf("(memory overhead > %.2fMiB)\n", mib_all);
-    if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (1): Read in copy of data");
 
-    /*********************************************************************
-     *                              Testing                              *
-     *********************************************************************/
+    if ( st_info->integers_ok ) {
 
-    // Sort the data
-    // -------------
+        // Integers are bijected to the natural numbers
+        // --------------------------------------------
 
-    /* MultiQuicksort (st_dtax, N, 0, ksort - 1, kvars * sizeof(*st_dtax), ltypes); */
-    MixedQuicksort (st_dtax, 0, N, 0, ksort - 1, kvars, kvars * sizeof(*st_dtax), ltypes);
-    if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (2): Sorted array");
+        size_t *st_bijection = calloc(N, sizeof(*st_bijection));
+        size_t *st_index     = calloc(N, sizeof(*st_index));
+        if ( st_bijection == NULL ) return (sf_oom_error("sf_msort", "st_bijection"));
+        if ( st_index     == NULL ) return (sf_oom_error("sf_msort", "st_index"));
 
-        /* Sort (1): Read in copy of data; 0.367 seconds. */
-        /* Sort (2): Sorted array; 1.737 seconds. */
-        /* Sort (3): Wrote back sorted data; 0.695 seconds. */
+        size_t offset = 1;
+        size_t offsets[ksort];
+        offsets[0] = 0;
+        for (k = 0; k < ksort - 1; k++) {
+            offset *= (st_info->sortvars_maxs[k] - st_info->sortvars_mins[k] + 1);
+            offsets[k + 1] = offset;
+        }
 
-    // Write the data
-    // --------------
+        // Read in the sort variables, which we know are integers
+        for (i = 0; i < N; i++) {
 
-    for (i = 0; i < N; i++) {
-        for (k = 0; k < kvars; k++) {
-            sel = i * kvars + k;
-            if ( ltypes[k] ) {
-                // if ( (rc = SF_sstore(1 + k, i + in1, (char *)st_dtax[sel])) ) return(rc);
-                if ( (rc = SF_sstore(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
-                // free(st_dtax[sel].cval);
+            // If only one variable, it will just get adjusted by its range
+            sel = i * kvars;
+            if ( (rc = SF_vdata(1, i + in1, &(st_dtax[sel].dval))) ) return(rc);
+            if ( SF_is_missing(st_dtax[sel].dval) ) st_dtax[sel].dval = st_info->sortvars_maxs[0];
+            st_bijection[i] = st_dtax[sel].dval - st_info->sortvars_mins[0] + 1;
+
+            // If multiple integers, they'll get mapped recursively
+            for (k = 1; k < ksort; k++) {
+                sel = i * kvars + k;
+                if ( (rc = SF_vdata(1 + k, i + in1, &(st_dtax[sel].dval))) ) return(rc);
+                if ( SF_is_missing(st_dtax[sel].dval) ) st_dtax[sel].dval = st_info->sortvars_maxs[0];
+                st_bijection[i] += (st_dtax[sel].dval - st_info->sortvars_mins[k]) * offsets[k];
             }
-            else {
-                // if ( (rc = SF_vstore(1 + k, i + in1, *((double *)st_dtax[sel]))) ) return(rc);
-                if ( (rc = SF_vstore(1 + k, i + in1, st_dtax[sel].dval)) ) return(rc);
+
+            // Read in the rest of the variables to union structure
+            for (k = ksort; k < kvars; k++) {
+                sel = i * kvars + k;
+                if ( (ilen = ltypes[k]) ) {
+                    if ( (rc = SF_sdata(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
+                }
+                else {
+                    if ( (rc = SF_vdata(1 + k, i + in1, &(st_dtax[sel].dval))) ) return(rc);
+                }
             }
         }
-    }
-    if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (3): Wrote back sorted data");
+        if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (1): Read in copy of data");
 
-    // for (i = 0; i < N; i++)
-    //     for (k = 0; k < kvars; k++)
-    //         if ( ltypes[k] )
-    //             free(st_dtax[i * kvars + k].cval);
+        // Radix Sort
+        // ----------
+
+        if ( (rc = RadixSortIndex ( st_bijection, st_index, N, 16, 0, st_info->verbose)) ) return(rc);
+        if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (2): Sorted bijection");
+        free (st_bijection);
+
+        // Write back the data using index
+        // -------------------------------
+
+        for (i = 0; i < N; i++) {
+            for (k = 0; k < kvars; k++) {
+                sel = st_index[i] * kvars + k;
+                if ( ltypes[k] ) {
+                    if ( (rc = SF_sstore(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
+                }
+                else {
+                    if ( (rc = SF_vstore(1 + k, i + in1, st_dtax[sel].dval)) ) return(rc);
+                }
+            }
+        }
+        if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (3): Wrote back sorted data");
+        free (st_index);
+    }
+    else {
+
+        // if ( st_info->kvars_sort_str == 0 ) {
+        if ( 0 ) {
+
+            // Read in double sort vars
+            // ------------------------
+
+            double *st_double = calloc(N * (ksort + 1), sizeof(*st_double));
+            if ( st_double == NULL ) return (sf_oom_error("sf_msort", "st_double"));
+            for (i = 0; i < N; i++) {
+                for (k = 0; k < ksort; k++) {
+                    sel = i * (ksort + 1) + k;
+                    if ( (rc = SF_vdata(1 + k, i + in1, &(st_double[sel]))) ) return(rc);
+                }
+                st_double[i * (ksort + 1) + ksort] = i;
+            }
+            if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (1): Read in sort vars");
+
+            MultiQuicksort2 (st_double, N, 0, ksort - 1, (ksort + 1) * sizeof(*st_double), ltypes);
+            if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (2): Sorted numeric array");
+
+            // Read in rest of data
+            // --------------------
+
+            size_t st_map;
+            for (i = 0; i < N; i++) {
+                st_map = (size_t) st_double[i * (ksort + 1) + ksort];
+                for (k = ksort; k < kvars; k++) {
+                    sel = st_map * kvars + k;
+                    if ( (ilen = ltypes[k]) ) {
+                        if ( (rc = SF_sdata(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
+                    }
+                    else {
+                        if ( (rc = SF_vdata(1 + k, i + in1, &(st_dtax[sel].dval))) ) return(rc);
+                    }
+                }
+            }
+            if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (1): Read in rest of data");
+
+            // Write the data
+            // --------------
+
+            for (i = 0; i < N; i++) {
+                for (k = 0; k < ksort; k++) {
+                    sel = i * (ksort + 1) + k;
+                    if ( (rc = SF_vstore(1 + k, i + in1, st_double[sel])) ) return(rc);
+                }
+
+                for (k = ksort; k < kvars; k++) {
+                    sel = i * kvars + k;
+                    if ( ltypes[k] ) {
+                        if ( (rc = SF_sstore(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
+                    }
+                    else {
+                        if ( (rc = SF_vstore(1 + k, i + in1, st_dtax[sel].dval)) ) return(rc);
+                    }
+                }
+            }
+            if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (3): Wrote back sorted data");
+
+            free (st_double);
+        }
+        else {
+
+            // Read in for mixed sort types
+            // ----------------------------
+
+            for (i = 0; i < N; i++) {
+                for (k = 0; k < kvars; k++) {
+                    sel = i * kvars + k;
+                    if ( (ilen = ltypes[k]) ) {
+                        if ( (rc = SF_sdata(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
+                    }
+                    else {
+                        if ( (rc = SF_vdata(1 + k, i + in1, &(st_dtax[sel].dval))) ) return(rc);
+                    }
+                }
+            }
+            if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (1): Read in copy of data");
+
+            // Sort the data
+            // -------------
+
+            MultiQuicksort (st_dtax, N, 0, ksort - 1, kvars * sizeof(*st_dtax), ltypes);
+            /* MixedQuicksort (st_dtax, 0, N, 0, ksort - 1, kvars, kvars * sizeof(*st_dtax), ltypes); */
+            if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (2): Sorted array");
+
+            // Write the data
+            // --------------
+
+            for (i = 0; i < N; i++) {
+                for (k = 0; k < kvars; k++) {
+                    sel = i * kvars + k;
+                    if ( ltypes[k] ) {
+                        if ( (rc = SF_sstore(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
+                    }
+                    else {
+                        if ( (rc = SF_vstore(1 + k, i + in1, st_dtax[sel].dval)) ) return(rc);
+                    }
+                }
+            }
+            if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (3): Wrote back sorted data");
+        }
+    }
+
+    // Cleanup
+    // -------
+
+    for (i = 0; i < N; i++)
+        for (k = 0; k < kvars; k++)
+            if ( ltypes[k] )
+                free(st_dtax[i * kvars + k].cval);
 
     free (st_dtax);
     free (ltypes);

@@ -28,7 +28,6 @@ int MultiCompareNum (const void *a, const void *b, void *thunk)
     // return BaseCompareNum(aa, bb);
 }
 
-
 void MultiQuicksort (
     void *start,
     size_t N,
@@ -77,6 +76,78 @@ loop:
             if ( MultiCompareNum(i - elsize, i, &kstart) ) break;
             j++;
         }
+    }
+
+    if ( j > 1 ) {
+        MultiQuicksort (
+            start,
+            j,
+            kstart + 1,
+            kend,
+            elsize,
+            ltypes
+        );
+    }
+
+    if ( (kstart < kend) ) {
+        start = i;
+        if ( start < end )
+            goto loop;
+    }
+}
+
+/*********************************************************************
+ *                              Testing                              *
+ *********************************************************************/
+
+int MultiCompareNum2 (const void *a, const void *b, void *thunk);
+int MultiCompareNum2 (const void *a, const void *b, void *thunk)
+{
+    int kstart = *(size_t *)thunk;
+    double aa = *((double *)a + kstart);
+    double bb = *((double *)b + kstart);
+    return BaseCompareNum(aa, bb);
+}
+
+void MultiQuicksort2 (
+    void *start,
+    size_t N,
+    size_t kstart,
+    size_t kend,
+    size_t elsize,
+    size_t *ltypes
+);
+
+void MultiQuicksort2 (
+    void *start,
+    size_t N,
+    size_t kstart,
+    size_t kend,
+    size_t elsize,
+    size_t *ltypes)
+{
+    size_t j;
+    void *i, *end;
+
+    quicksort (
+        start,
+        N,
+        elsize,
+        MultiCompareNum,
+        &kstart
+    );
+
+    if ( kstart >= kend )
+        return;
+
+    end = start + N * elsize;
+
+loop:
+
+    j = 1;
+    for (i = start + elsize; i < end; i += elsize) {
+        if ( MultiCompareNum(i - elsize, i, &kstart) ) break;
+        j++;
     }
 
     if ( j > 1 ) {

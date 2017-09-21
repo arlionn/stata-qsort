@@ -29,10 +29,16 @@ use /tmp/qsort, clear
 * desc
 * expand 3
 * replace dummy = runiform()
-sort rstr x rst2 y dummy
-cap drop st_idx
-gen st_idx = _n
-sort idx
+* sort rstr x rst2 y dummy
+* cap drop st_idx
+* gen st_idx = _n
+* sort idx
+* sort x y dummy
+
+cap noi qsort x y dummy, v b
+cap noi qsort idx, v b
+cap noi qsort x idx, v b
+cap noi qsort idx, v b
 cap noi qsort rstr x rst2 y dummy, v b
-* l in 1/10
+l if st_idx != _n
 assert st_idx == _n
