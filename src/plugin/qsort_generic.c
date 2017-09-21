@@ -64,7 +64,7 @@ int sf_msort(struct StataInfo *st_info)
     double mib_all  = mib_dtax + N * strbytes * sizeof(char) / 1024 / 1024;
     if ( st_info->verbose ) sf_printf("(memory overhead > %.2fMiB)\n", mib_all);
 
-    if ( (st_info->qsort == 0) & (st_info->kvars_sort_str == 0) ) {
+    if ( (st_info->qsort == 0) & (st_info->kvars_sort_str == 0) & !(st_info->integers_ok) ) {
 
         // It is leaner to use a union than an array of pointers or a structure
         // void **st_dtax = calloc(N * kvars, sizeof(*st_dtax));
@@ -125,54 +125,62 @@ int sf_msort(struct StataInfo *st_info)
         if ( st_bijection == NULL ) return (sf_oom_error("sf_msort", "st_bijection"));
         if ( st_index     == NULL ) return (sf_oom_error("sf_msort", "st_index"));
 
+        int l;
         size_t offset = 1;
         size_t offsets[ksort];
         offsets[0] = 0;
         for (k = 0; k < ksort - 1; k++) {
-            offset *= (st_info->sortvars_maxs[k] - st_info->sortvars_mins[k] + 1);
+            l = ksort - (k + 1);
+            offset *= (st_info->sortvars_maxs[l] - st_info->sortvars_mins[l] + 1);
             offsets[k + 1] = offset;
         }
 
-        // Read in integer sort vars
-        // -------------------------
-
-        ST_double z;
-        int *st_int = calloc(N * ksort, sizeof(*st_int));
-        if ( st_int == NULL ) return (sf_oom_error("sf_msort", "st_int"));
-
+        // Read in the sort variables, which we know are integers
         for (i = 0; i < N; i++) {
 
             // If only one variable, it will just get adjusted by its range
-            sel = i * ksort;
-            if ( (rc = SF_vdata(1, i + in1, &z)) ) return(rc);
-            if ( SF_is_missing(z) ) z = st_info->sortvars_maxs[0];
-            st_bijection[i] = z - st_info->sortvars_mins[0] + 1;
-            st_int[sel] = (int) z;
+            l = ksort - (0 + 1);
+            sel = i * kvars + l;
+            if ( (rc = SF_vdata(1 + l, i + in1, &(st_dtax[sel].dval))) ) return(rc);
+            if ( st_info->invert[l] ) {
+                // if ( SF_is_missing(st_dtax[sel].dval) ) st_dtax[sel].dval = st_info->sortvars_mins[l];
+                if ( SF_is_missing(st_dtax[sel].dval) )
+                    st_bijection[i] = 1;
+                else
+                    st_bijection[i] = st_info->sortvars_maxs[l] - st_dtax[sel].dval + 1;
+            }
+            else {
+                // if ( SF_is_missing(st_dtax[sel].dval) ) st_dtax[sel].dval = st_info->sortvars_maxs[l];
+                if ( SF_is_missing(st_dtax[sel].dval) )
+                    st_bijection[i] = st_info->sortvars_maxs[l] - st_info->sortvars_mins[l] + 1;
+                else 
+                    st_bijection[i] = st_dtax[sel].dval - st_info->sortvars_mins[l] + 1;
+            }
 
             // If multiple integers, they'll get mapped recursively
             for (k = 1; k < ksort; k++) {
-                sel = i * ksort + k;
-                if ( (rc = SF_vdata(1 + k, i + in1, &z)) ) return(rc);
-                if ( SF_is_missing(z) ) z = st_info->sortvars_maxs[0];
-                st_bijection[i] += (z - st_info->sortvars_mins[k]) * offsets[k];
-                st_int[sel] = (int) z;
+                l   = ksort - (k + 1);
+                sel = i * kvars + l;
+                if ( (rc = SF_vdata(1 + l, i + in1, &(st_dtax[sel].dval))) ) return(rc);
+                if ( st_info->invert[l] ) {
+                    // if ( SF_is_missing(st_dtax[sel].dval) ) st_dtax[sel].dval = st_info->sortvars_mins[l];
+                    if ( SF_is_missing(st_dtax[sel].dval) )
+                        st_bijection[i] += 0;
+                    else
+                        st_bijection[i] += (st_info->sortvars_maxs[l] - st_dtax[sel].dval) * offsets[k];
+                }
+                else {
+                    // if ( SF_is_missing(st_dtax[sel].dval) ) st_dtax[sel].dval = st_info->sortvars_maxs[l];
+                    if ( SF_is_missing(st_dtax[sel].dval) )
+                        st_bijection[i] += (st_info->sortvars_maxs[l] - st_info->sortvars_mins[l]) * offsets[k];
+                    else
+                        st_bijection[i] += (st_dtax[sel].dval - st_info->sortvars_mins[l]) * offsets[k];
+                }
             }
-        }
-        if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (1): Read in sort vars");
 
-        // Radix Sort
-        // ----------
-
-        if ( (rc = RadixSortIndex ( st_bijection, st_index, N, 16, 0, st_info->verbose)) ) return(rc);
-        if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (2): Sorted bijection");
-        free (st_bijection);
-
-        // Read in rest of data
-        // --------------------
-
-        for (i = 0; i < N; i++) {
+            // Read in the rest of the variables to union structure
             for (k = ksort; k < kvars; k++) {
-                sel = st_index[i] * krest + k - ksort;
+                sel = i * kvars + k;
                 if ( (ilen = ltypes[k]) ) {
                     if ( (rc = SF_sdata(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
                 }
@@ -181,19 +189,21 @@ int sf_msort(struct StataInfo *st_info)
                 }
             }
         }
-        if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (1): Read in rest of data");
+        if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (1): Read in copy of data");
+
+        // Radix Sort
+        // ----------
+
+        if ( (rc = RadixSortIndex ( st_bijection, st_index, N, 16, 0, st_info->verbose)) ) return(rc);
+        if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (2): Sorted bijection");
+        free (st_bijection);
 
         // Write back the data using index
         // -------------------------------
 
         for (i = 0; i < N; i++) {
-            for (k = 0; k < ksort; k++) {
-                sel = st_index[i] * ksort + k;
-                if ( (rc = SF_vstore(1 + k, i + in1, st_int[sel])) ) return(rc);
-            }
-
-            for (k = ksort; k < kvars; k++) {
-                sel = i * krest + k - ksort;
+            for (k = 0; k < kvars; k++) {
+                sel = st_index[i] * kvars + k;
                 if ( ltypes[k] ) {
                     if ( (rc = SF_sstore(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
                 }
@@ -203,16 +213,15 @@ int sf_msort(struct StataInfo *st_info)
             }
         }
         if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (3): Wrote back sorted data");
-        free (st_int);
         free (st_index);
 
         // Cleanup
         // -------
 
         for (i = 0; i < N; i++)
-            for (k = 0; k < krest; k++)
-                if ( ltypes[k + ksort] )
-                    free(st_dtax[i * krest + k].cval);
+            for (k = 0; k < kvars; k++)
+                if ( ltypes[k] )
+                    free(st_dtax[i * kvars + k].cval);
     }
     else {
 
@@ -232,7 +241,7 @@ int sf_msort(struct StataInfo *st_info)
             }
             if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (1): Read in sort vars");
 
-            MultiQuicksort2 (st_double, N, 0, ksort - 1, (ksort + 1) * sizeof(*st_double), ltypes);
+            MultiQuicksort2 (st_double, N, 0, ksort - 1, (ksort + 1) * sizeof(*st_double), ltypes, st_info->invert);
             if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (2): Sorted numeric array");
 
             // Read in rest of data
@@ -305,7 +314,7 @@ int sf_msort(struct StataInfo *st_info)
             // Sort the data
             // -------------
 
-            MultiQuicksort (st_dtax, N, 0, ksort - 1, kvars * sizeof(*st_dtax), ltypes);
+            MultiQuicksort (st_dtax, N, 0, ksort - 1, kvars * sizeof(*st_dtax), ltypes, st_info->invert);
             /* MixedQuicksort (st_dtax, 0, N, 0, ksort - 1, kvars, kvars * sizeof(*st_dtax), ltypes); */
             if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (2): Sorted array");
 

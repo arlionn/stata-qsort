@@ -16,6 +16,16 @@ int MultiCompareChar (const void *a, const void *b, void *thunk)
     return BaseCompareChar(aa->cval, bb->cval);
 }
 
+int MultiCompareCharInvert (const void *a, const void *b, void *thunk);
+int MultiCompareCharInvert (const void *a, const void *b, void *thunk)
+{
+    int kstart = *(size_t *)thunk;
+    // return BaseCompareChar(*((char **)a + kstart), *((char **)b + kstart));
+    MixedUnion *aa = (MixedUnion *)a + kstart;
+    MixedUnion *bb = (MixedUnion *)b + kstart;
+    return BaseCompareChar(bb->cval, aa->cval);
+}
+
 int MultiCompareNum (const void *a, const void *b, void *thunk);
 int MultiCompareNum (const void *a, const void *b, void *thunk)
 {
@@ -28,13 +38,26 @@ int MultiCompareNum (const void *a, const void *b, void *thunk)
     // return BaseCompareNum(aa, bb);
 }
 
+int MultiCompareNumInvert (const void *a, const void *b, void *thunk);
+int MultiCompareNumInvert (const void *a, const void *b, void *thunk)
+{
+    int kstart = *(size_t *)thunk;
+    MixedUnion *aa = (MixedUnion *)a + kstart;
+    MixedUnion *bb = (MixedUnion *)b + kstart;
+    return BaseCompareNum(bb->dval, aa->dval);
+    // const double aa = *((double*)*((void **)a + kstart));
+    // const double bb = *((double*)*((void **)b + kstart));
+    // return BaseCompareNum(aa, bb);
+}
+
 void MultiQuicksort (
     void *start,
     size_t N,
     size_t kstart,
     size_t kend,
     size_t elsize,
-    size_t *ltypes
+    size_t *ltypes,
+    int *invert
 );
 
 void MultiQuicksort (
@@ -43,7 +66,8 @@ void MultiQuicksort (
     size_t kstart,
     size_t kend,
     size_t elsize,
-    size_t *ltypes)
+    size_t *ltypes,
+    int *invert)
 {
     size_t j;
     short ischar;
@@ -53,7 +77,9 @@ void MultiQuicksort (
         start,
         N,
         elsize,
-        ( (ischar = (ltypes[kstart] > 0)) )? MultiCompareChar: MultiCompareNum,
+        ( (ischar = (ltypes[kstart] > 0)) )?
+        (invert[kstart]? MultiCompareCharInvert: MultiCompareChar):
+        (invert[kstart]? MultiCompareNumInvert: MultiCompareNum),
         &kstart
     );
 
@@ -65,16 +91,32 @@ void MultiQuicksort (
 loop:
 
     j = 1;
-    if ( ischar ) {
-        for (i = start + elsize; i < end; i += elsize) {
-            if ( MultiCompareChar(i - elsize, i, &kstart) ) break;
-            j++;
+    if ( invert[kstart] ) {
+        if ( ischar ) {
+            for (i = start + elsize; i < end; i += elsize) {
+                if ( MultiCompareCharInvert(i - elsize, i, &kstart) ) break;
+                j++;
+            }
+        }
+        else {
+            for (i = start + elsize; i < end; i += elsize) {
+                if ( MultiCompareNumInvert(i - elsize, i, &kstart) ) break;
+                j++;
+            }
         }
     }
     else {
-        for (i = start + elsize; i < end; i += elsize) {
-            if ( MultiCompareNum(i - elsize, i, &kstart) ) break;
-            j++;
+        if ( ischar ) {
+            for (i = start + elsize; i < end; i += elsize) {
+                if ( MultiCompareChar(i - elsize, i, &kstart) ) break;
+                j++;
+            }
+        }
+        else {
+            for (i = start + elsize; i < end; i += elsize) {
+                if ( MultiCompareNum(i - elsize, i, &kstart) ) break;
+                j++;
+            }
         }
     }
 
@@ -85,7 +127,8 @@ loop:
             kstart + 1,
             kend,
             elsize,
-            ltypes
+            ltypes,
+            invert
         );
     }
 
@@ -109,13 +152,23 @@ int MultiCompareNum2 (const void *a, const void *b, void *thunk)
     return BaseCompareNum(aa, bb);
 }
 
+int MultiCompareNum2Invert (const void *a, const void *b, void *thunk);
+int MultiCompareNum2Invert (const void *a, const void *b, void *thunk)
+{
+    int kstart = *(size_t *)thunk;
+    double aa = *((double *)a + kstart);
+    double bb = *((double *)b + kstart);
+    return BaseCompareNum(bb, aa);
+}
+
 void MultiQuicksort2 (
     void *start,
     size_t N,
     size_t kstart,
     size_t kend,
     size_t elsize,
-    size_t *ltypes
+    size_t *ltypes,
+    int *invert
 );
 
 void MultiQuicksort2 (
@@ -124,7 +177,8 @@ void MultiQuicksort2 (
     size_t kstart,
     size_t kend,
     size_t elsize,
-    size_t *ltypes)
+    size_t *ltypes,
+    int *invert)
 {
     size_t j;
     void *i, *end;
@@ -133,7 +187,7 @@ void MultiQuicksort2 (
         start,
         N,
         elsize,
-        MultiCompareNum,
+        invert[kstart]? MultiCompareNum2Invert: MultiCompareNum2,
         &kstart
     );
 
@@ -145,9 +199,17 @@ void MultiQuicksort2 (
 loop:
 
     j = 1;
-    for (i = start + elsize; i < end; i += elsize) {
-        if ( MultiCompareNum(i - elsize, i, &kstart) ) break;
-        j++;
+    if ( invert[kstart] ) {
+        for (i = start + elsize; i < end; i += elsize) {
+            if ( MultiCompareNum2Invert(i - elsize, i, &kstart) ) break;
+            j++;
+        }
+    }
+    else {
+        for (i = start + elsize; i < end; i += elsize) {
+            if ( MultiCompareNum2(i - elsize, i, &kstart) ) break;
+            j++;
+        }
     }
 
     if ( j > 1 ) {
@@ -157,7 +219,8 @@ loop:
             kstart + 1,
             kend,
             elsize,
-            ltypes
+            ltypes,
+            invert
         );
     }
 

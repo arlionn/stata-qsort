@@ -27,6 +27,7 @@ struct StataInfo {
     int integers_ok;
     int strmax;
     int strmax_rest;
+    int *invert;
     //
     int kvars_sort;
     int kvars_sort_num;

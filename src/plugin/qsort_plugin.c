@@ -300,6 +300,18 @@ int sf_parse_info (struct StataInfo *st_info)
         for (k = 0; k < kvars_rest_num; k++)
             st_info->pos_num_restvars[k] = (int) pos_num_restvars_double[k];
     }
+    
+    /*********************************************************************
+     *      Parse whether to sort in ascending or descending order       *
+     *********************************************************************/
+
+    st_info->invert = calloc(kvars_rest_str, sizeof st_info->invert);
+    if ( st_info->invert == NULL ) return(sf_oom_error("sf_parse_info", "st_info->invert"));
+
+    double invert_double[kvars_sort];
+    if ( (rc = sf_get_vector("__qsort_invert", invert_double)) ) return(rc);
+    for (k = 0; k < kvars_sort; k++)
+        st_info->invert[k] = (int) invert_double[k];
 
     /*********************************************************************
      *                      Save info in structure                       *

@@ -4,7 +4,37 @@
 capture program drop qsort
 program define qsort
     version 13
-    syntax varlist(min = 1), [Verbose Benchmark overhead qsort]
+
+    syntax anything, [*]
+    cap matrix drop __qsort_invert
+    local parse    `anything'
+    local varlist  ""
+    local skip = 0
+    while ( trim("`parse'") != "" ) {
+        gettoken var parse: parse, p(" -+")
+        if inlist("`var'", "-", "+") {
+            matrix __qsort_invert = nullmat(__qsort_invert), ( "`var'" == "-" )
+            local skip = 1
+        }
+        else {
+            cap confirm variable `var'
+            if ( _rc ) {
+                di as err "Variable '`var'' does not exist. Syntax:"
+                di as err "qsort [+|-]varname [[+|-]varname ...], [options]"
+                exit _rc
+            }
+            if ( `skip' ) {
+                local skip = 0
+            }
+            else {
+                matrix __qsort_invert = nullmat(__qsort_invert), 0
+            }
+            local varlist `varlist' `var'
+        }
+    }
+
+    local 0 `varlist', `options'
+    syntax varlist(min = 1), [Verbose Benchmark qsort stable]
     if ( "`c(os)'" != "Unix" ) di as err "Not available for `c(os)`; only Unix."
 
     * Verbose and benchmark printing
@@ -33,9 +63,20 @@ program define qsort
     * Parse sort variables and the rest of the variabes
     * -------------------------------------------------
 
+    if ( "`stable'" == "stable" ) {
+        tempvar ix
+        if ( `=_N < 2^31' ) {
+            gen long `ix' = _n
+        }
+        else {
+            gen `c(type)' `ix' = _n
+        }
+    }
+
     qui ds *
     local memvars `r(varlist)'
-    qui ds `varlist'
+
+    qui ds `varlist' `ix'
     local sortvars `r(varlist)'
     local restvars: list memvars - sortvars
 
@@ -47,9 +88,8 @@ program define qsort
     * Run the plugin
     * --------------
 
-    * cap `noi' plugin call qsort_plugin `varlist' `restvars', sort
-    di "plugin call qsort_plugin `varlist' `restvars', sort"
-    plugin call qsort_plugin `varlist' `restvars', sort
+    * di "plugin call qsort_plugin `sortvars' `restvars', sort"
+    cap `noi' plugin call qsort_plugin `sortvars' `restvars', sort
 
     * Clean up after yourself
     * -----------------------
@@ -213,11 +253,11 @@ program parse_sort_types
                     gen `strlen' = length(`sortvar')
                     qui sum `strlen'
                     matrix __qsort_sortvars = nullmat(__qsort_sortvars), `r(max)'
-                    matrix __qsort_strpos   = nullmat(__qsort_strpos),   `sort_post' 
+                    matrix __qsort_strpos   = nullmat(__qsort_strpos),   `sort_post'
                 }
                 else {
                     matrix __qsort_sortvars = nullmat(__qsort_sortvars), `=regexs(1)'
-                    matrix __qsort_strpos   = nullmat(__qsort_strpos),   `sort_post' 
+                    matrix __qsort_strpos   = nullmat(__qsort_strpos),   `sort_post'
                 }
             }
             else {
@@ -262,11 +302,11 @@ program parse_rest_types
                 gen `strlen' = length(`sortvar')
                 qui sum `strlen'
                 matrix __qsort_restvars    = nullmat(__qsort_restvars),    `r(max)'
-                matrix __qsort_strpos_rest = nullmat(__qsort_strpos_rest), `sort_post' 
+                matrix __qsort_strpos_rest = nullmat(__qsort_strpos_rest), `sort_post'
             }
             else {
                 matrix __qsort_restvars = nullmat(__qsort_restvars),       `=regexs(1)'
-                matrix __qsort_strpos_rest = nullmat(__qsort_strpos_rest), `sort_post' 
+                matrix __qsort_strpos_rest = nullmat(__qsort_strpos_rest), `sort_post'
             }
         }
         else {

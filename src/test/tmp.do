@@ -22,23 +22,49 @@ set linesize 128
 * gen idx = _n
 * save /tmp/qsort, replace
 
-set rmsg on
-* use /tmp/qsort in 1/150000, clear
-use /tmp/qsort, clear
-* gen testing = "This is a very long string; I don't see how mem wouldn't go through the roof."
-* desc
-expand 3
-replace dummy = runiform()
+* set rmsg on
+* * use /tmp/qsort in 1/150000, clear
+* use /tmp/qsort, clear
+* * gen testing = "This is a very long string; I don't see how mem wouldn't go through the roof."
+* * desc
+* * expand 3
+* * replace dummy = runiform()
 * sort rstr x rst2 y dummy
-* cap drop st_idx
-* gen st_idx = _n
+* * cap drop st_idx
+* * gen st_idx = _n
 * sort idx
-* sort x y dummy
-
-cap noi qsort x y dummy, v b
-cap noi qsort idx, v b
-cap noi qsort x idx, v b
-* cap noi qsort idx, v b
+* * sort x y dummy
+* * sort idx
+* sort x idx
+* sort idx
+*
 * cap noi qsort rstr x rst2 y dummy, v b
+* cap noi qsort idx, v b
+* * cap noi qsort x y dummy, v b
+* * cap noi qsort idx, v b
+* cap noi qsort x idx, v b
+* * cap noi qsort idx, v b
+* * l if st_idx != _n
+* * assert st_idx == _n
+
+***********************************************************************
+*                                gsort                                *
+***********************************************************************
+
+set rmsg on
+use /tmp/qsort, clear
+* gsort -rstr x rst2 -y dummy
+* gsort idx
+* gsort x -y -dummy
+* gsort idx
+* gsort x -idx
+* gsort idx
+
+qsort -rstr x rst2 -y dummy, v b
+qsort idx, v b
+qsort x -y -dummy, v b
+qsort idx, v b
+qsort x -idx, v b
+qsort idx, v b
 * l if st_idx != _n
 * assert st_idx == _n

@@ -25,8 +25,6 @@
 {varname}
 [[{cmd:+}|{cmd:-}]
 {varname} {it:...}]
-[{cmd:,}
-{opth g:enerate(newvar)} {opt m:first}]
 
 
 {marker menu}{...}
@@ -40,9 +38,11 @@
 {title:Description}
 
 {pstd}
-{opt qsort} arranges observations to be in ascending or descending
-order of the specified variables and so differs from {opt sort} in that
-{opt sort} produces ascending-order arrangements only; see {manhelp sort D}.
+{opt qsort} uses C-plugins to implement a faster version of {opt gsort}.
+HOWEVER, this comes at a very large memory penalty. This is mainly a
+proof-of-concept package written because the internals will be used
+elsewhere. Like {opt gsort}, it can arrange observations to be in ascending or
+descending order.
 
 {pstd}
 Each {varname} can be numeric or a string.
@@ -55,15 +55,6 @@ or nothing is typed in front of the name and are placed in descending order if
 
 {marker options}{...}
 {title:Options}
-
-{phang}
-{opth generate(newvar)} creates {it:newvar} containing 1, 2,
-3, ... for each group denoted by the ordered data.  This is
-useful when using the ordering in a subsequent {helpb by} operation.
-
-{phang}
-{opt mfirst} specifies that missing values be placed first in
-descending orderings rather than last.
 
 
 {marker examples}{...}

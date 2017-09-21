@@ -53,63 +53,97 @@ Note:  Your site can add messages to the introduction by editing the file
 . * gen idx = _n
 . * save /tmp/qsort, replace
 . 
-. set rmsg on
-r; t=0.00 23:11:44
-
-. * use /tmp/qsort in 1/150000, clear
-. use /tmp/qsort, clear
-r; t=0.03 23:11:44
-
-. * gen testing = "This is a very long string; I don't see how mem wouldn't go through the roof."
-. * desc
-. expand 3
-(4000000 observations created)
-r; t=0.14 23:11:44
-
-. replace dummy = runiform()
-dummy was byte now float
-(6000000 real changes made)
-r; t=0.45 23:11:45
-
+. * set rmsg on
+. * * use /tmp/qsort in 1/150000, clear
+. * use /tmp/qsort, clear
+. * * gen testing = "This is a very long string; I don't see how mem wouldn't go through the roof."
+. * * desc
+. * * expand 3
+. * * replace dummy = runiform()
 . * sort rstr x rst2 y dummy
-. * cap drop st_idx
-. * gen st_idx = _n
+. * * cap drop st_idx
+. * * gen st_idx = _n
 . * sort idx
-. * sort x y dummy
-. 
-. cap noi qsort x y dummy, v b
-plugin call qsort_plugin x y dummy rstr rst2 id2 idx, sort
-(memory overhead > 468.00MiB)
-        Sort (1): Read in sort vars; 0.588 seconds.
-        Sort (2): Sorted numeric array; 1.494 seconds.
-        Sort (1): Read in rest of data; 1.011 seconds.
-        Sort (3): Wrote back sorted data; 0.474 seconds.
-r; t=3.80 23:11:49
-
-. cap noi qsort idx, v b
-plugin call qsort_plugin idx x y rstr rst2 id2 dummy, sort
-(memory overhead > 468.00MiB)
-        Sort (1): Read in sort vars; 0.455 seconds.
-                Step (2.1) counting sort: min = 1, max = 2,000,000
-        Sort (2): Sorted bijection; 0.285 seconds.
-        Sort (1): Read in rest of data; 1.181 seconds.
-        Sort (3): Wrote back sorted data; 0.920 seconds.
-r; t=3.22 23:11:52
-
-. cap noi qsort x idx, v b
-plugin call qsort_plugin x idx y rstr rst2 id2 dummy, sort
-(memory overhead > 468.00MiB)
-        Sort (1): Read in sort vars; 0.569 seconds.
-                Step (2.1) radix sort: loops = 2, bits = 16, shift = 65,536
-        Sort (2): Sorted bijection; 0.431 seconds.
-        Sort (1): Read in rest of data; 0.395 seconds.
-        Sort (3): Wrote back sorted data; 0.455 seconds.
-r; t=2.36 23:11:54
-
-. * cap noi qsort idx, v b
+. * * sort x y dummy
+. * * sort idx
+. * sort x idx
+. * sort idx
+. *
 . * cap noi qsort rstr x rst2 y dummy, v b
+. * cap noi qsort idx, v b
+. * * cap noi qsort x y dummy, v b
+. * * cap noi qsort idx, v b
+. * cap noi qsort x idx, v b
+. * * cap noi qsort idx, v b
+. * * l if st_idx != _n
+. * * assert st_idx == _n
+. 
+. ***********************************************************************
+. *                                gsort                                *
+. ***********************************************************************
+. 
+. set rmsg on
+r; t=0.00 2:03:55
+
+. use /tmp/qsort, clear
+r; t=0.05 2:03:55
+
+. * gsort -rstr x rst2 -y dummy
+. * gsort idx
+. * gsort x -y -dummy
+. * gsort idx
+. * gsort x -idx
+. * gsort idx
+. 
+. qsort -rstr x rst2 -y dummy, v b
+(memory overhead > 155.00MiB)
+        Sort (1): Read in copy of data; 0.296 seconds.
+        Sort (2): Sorted array; 1.566 seconds.
+        Sort (3): Wrote back sorted data; 0.463 seconds.
+r; t=2.71 2:03:57
+
+. qsort idx, v b
+(memory overhead > 155.00MiB)
+        Sort (1): Read in copy of data; 0.332 seconds.
+                Step (2.1) counting sort: min = 1, max = 2,000,000
+        Sort (2): Sorted bijection; 0.307 seconds.
+        Sort (3): Wrote back sorted data; 0.984 seconds.
+r; t=2.37 2:04:00
+
+. qsort x -y -dummy, v b
+(memory overhead > 155.00MiB)
+        Sort (1): Read in sort vars; 0.168 seconds.
+        Sort (2): Sorted numeric array; 0.455 seconds.
+        Sort (1): Read in rest of data; 0.443 seconds.
+        Sort (3): Wrote back sorted data; 0.151 seconds.
+r; t=1.32 2:04:01
+
+. qsort idx, v b
+(memory overhead > 155.00MiB)
+        Sort (1): Read in copy of data; 0.444 seconds.
+                Step (2.1) counting sort: min = 1, max = 2,000,000
+        Sort (2): Sorted bijection; 0.413 seconds.
+        Sort (3): Wrote back sorted data; 1.222 seconds.
+r; t=2.25 2:04:03
+
+. qsort x -idx, v b
+(memory overhead > 155.00MiB)
+        Sort (1): Read in copy of data; 0.345 seconds.
+                Step (2.1) radix sort: loops = 2, bits = 16, shift = 65,536
+        Sort (2): Sorted bijection; 0.172 seconds.
+        Sort (3): Wrote back sorted data; 0.286 seconds.
+r; t=1.01 2:04:04
+
+. qsort idx, v b
+(memory overhead > 155.00MiB)
+        Sort (1): Read in copy of data; 0.299 seconds.
+                Step (2.1) counting sort: min = 1, max = 2,000,000
+        Sort (2): Sorted bijection; 0.047 seconds.
+        Sort (3): Wrote back sorted data; 0.174 seconds.
+r; t=0.67 2:04:05
+
 . * l if st_idx != _n
 . * assert st_idx == _n
 . 
 end of do-file
-r; t=0.00 23:11:54
+r; t=0.00 2:04:05
