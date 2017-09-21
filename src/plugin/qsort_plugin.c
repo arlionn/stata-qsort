@@ -107,6 +107,16 @@ int sf_parse_info (struct StataInfo *st_info)
     }
     int kvars_rest_start = kvars_sort + 1;
 
+    // Force mixed qsort (no smart optimizations)
+    int qsort;
+    ST_double qsort_double ;
+    if ( (rc = SF_scal_use("__qsort_qsort", &qsort_double)) ) {
+        return(rc) ;
+    }
+    else {
+        qsort = (int) qsort_double;
+    }
+
     // Verbose printing
     int verbose;
     ST_double verb_double ;
@@ -305,6 +315,7 @@ int sf_parse_info (struct StataInfo *st_info)
     st_info->kvars_sort       = kvars_sort;
     st_info->kvars_sort_num   = kvars_sort_num;
     st_info->kvars_sort_str   = kvars_sort_str;
+    st_info->qsort            = qsort;
     st_info->verbose          = verbose;
     st_info->benchmark        = benchmark;
     st_info->integers_ok      = integers_ok;

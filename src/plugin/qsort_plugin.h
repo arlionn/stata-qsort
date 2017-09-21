@@ -21,6 +21,7 @@ struct StataInfo {
     size_t in2;
     size_t N;
     //
+    int qsort;
     int verbose;
     int benchmark;
     int integers_ok;

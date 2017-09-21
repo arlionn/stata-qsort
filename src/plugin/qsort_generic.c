@@ -51,42 +51,71 @@ int sf_msort(struct StataInfo *st_info)
         }
     }
 
-    // Allocate space
-    // --------------
+    /*********************************************************************
+     *                          Allocate space                           *
+     *********************************************************************/
 
     ST_retcode rc ;
     size_t sel;
     clock_t timer = clock();
+    MixedUnion *st_dtax;
 
-    // It is leaner to use a union than an array of pointers or a structure
-    // void **st_dtax = calloc(N * kvars, sizeof(*st_dtax));
-    MixedUnion *st_dtax = calloc(N * kvars, sizeof(*st_dtax));
-    if ( st_dtax == NULL ) return (sf_oom_error("sf_msort", "st_dtax"));
-
-    // It is faster to allocate and zero all memory first
-    for (i = 0; i < N; i++) {
-        for (k = 0; k < kvars; k++) {
-            sel = i * kvars + k;
-            if ( (ilen = ltypes[k]) ) {
-                st_dtax[sel].cval = malloc((ilen + 1) * sizeof(char));
-                if ( st_dtax[sel].cval == NULL ) return (sf_oom_error("sf_msort", "st_dtax[sel].cval"));
-                memset (st_dtax[sel].cval, '\0', ilen + 1);
-            }
-            // else {
-            //     st_dtax[sel] = malloc(sizeof(double));
-            //     if ( st_dtax[sel].dval == NULL ) return (sf_oom_error("sf_msort", "st_dtax[sel].dval"));
-            // }
-        }
-    }
-
-    // Read the data
-    // -------------
-
-    double mib_dtax = N * kvars * sizeof(*st_dtax) / 1024 / 1024;
+    double mib_dtax = N * kvars * sizeof(MixedUnion) / 1024 / 1024;
     double mib_all  = mib_dtax + N * strbytes * sizeof(char) / 1024 / 1024;
     if ( st_info->verbose ) sf_printf("(memory overhead > %.2fMiB)\n", mib_all);
 
-    if ( st_info->integers_ok ) {
+    if ( (st_info->qsort == 0) & (st_info->kvars_sort_str == 0) ) {
+
+        // It is leaner to use a union than an array of pointers or a structure
+        // void **st_dtax = calloc(N * kvars, sizeof(*st_dtax));
+        st_dtax = calloc(N * krest, sizeof(*st_dtax));
+        if ( st_dtax == NULL ) return (sf_oom_error("sf_msort", "st_dtax"));
+
+        // It is faster to allocate and zero all memory first
+        for (i = 0; i < N; i++) {
+            for (k = 0; k < krest; k++) {
+                sel = i * krest + k;
+                if ( (ilen = ltypes[k + ksort]) ) {
+                    st_dtax[sel].cval = malloc((ilen + 1) * sizeof(char));
+                    if ( st_dtax[sel].cval == NULL ) return (sf_oom_error("sf_msort", "st_dtax[sel].cval"));
+                    memset (st_dtax[sel].cval, '\0', ilen + 1);
+                }
+                // else {
+                //     st_dtax[sel] = malloc(sizeof(double));
+                //     if ( st_dtax[sel].dval == NULL ) return (sf_oom_error("sf_msort", "st_dtax[sel].dval"));
+                // }
+            }
+        }
+    }
+    else {
+
+        // It is leaner to use a union than an array of pointers or a structure
+        // void **st_dtax = calloc(N * kvars, sizeof(*st_dtax));
+        st_dtax = calloc(N * kvars, sizeof(*st_dtax));
+        if ( st_dtax == NULL ) return (sf_oom_error("sf_msort", "st_dtax"));
+
+        // It is faster to allocate and zero all memory first
+        for (i = 0; i < N; i++) {
+            for (k = 0; k < kvars; k++) {
+                sel = i * kvars + k;
+                if ( (ilen = ltypes[k]) ) {
+                    st_dtax[sel].cval = malloc((ilen + 1) * sizeof(char));
+                    if ( st_dtax[sel].cval == NULL ) return (sf_oom_error("sf_msort", "st_dtax[sel].cval"));
+                    memset (st_dtax[sel].cval, '\0', ilen + 1);
+                }
+                // else {
+                //     st_dtax[sel] = malloc(sizeof(double));
+                //     if ( st_dtax[sel].dval == NULL ) return (sf_oom_error("sf_msort", "st_dtax[sel].dval"));
+                // }
+            }
+        }
+    }
+
+    /*********************************************************************
+     *                         Read in the data                          *
+     *********************************************************************/
+
+    if ( (st_info->qsort == 0) & st_info->integers_ok ) {
 
         // Integers are bijected to the natural numbers
         // --------------------------------------------
@@ -104,35 +133,32 @@ int sf_msort(struct StataInfo *st_info)
             offsets[k + 1] = offset;
         }
 
-        // Read in the sort variables, which we know are integers
+        // Read in integer sort vars
+        // -------------------------
+
+        ST_double z;
+        int *st_int = calloc(N * ksort, sizeof(*st_int));
+        if ( st_int == NULL ) return (sf_oom_error("sf_msort", "st_int"));
+
         for (i = 0; i < N; i++) {
 
             // If only one variable, it will just get adjusted by its range
-            sel = i * kvars;
-            if ( (rc = SF_vdata(1, i + in1, &(st_dtax[sel].dval))) ) return(rc);
-            if ( SF_is_missing(st_dtax[sel].dval) ) st_dtax[sel].dval = st_info->sortvars_maxs[0];
-            st_bijection[i] = st_dtax[sel].dval - st_info->sortvars_mins[0] + 1;
+            sel = i * ksort;
+            if ( (rc = SF_vdata(1, i + in1, &z)) ) return(rc);
+            if ( SF_is_missing(z) ) z = st_info->sortvars_maxs[0];
+            st_bijection[i] = z - st_info->sortvars_mins[0] + 1;
+            st_int[sel] = (int) z;
 
             // If multiple integers, they'll get mapped recursively
             for (k = 1; k < ksort; k++) {
-                sel = i * kvars + k;
-                if ( (rc = SF_vdata(1 + k, i + in1, &(st_dtax[sel].dval))) ) return(rc);
-                if ( SF_is_missing(st_dtax[sel].dval) ) st_dtax[sel].dval = st_info->sortvars_maxs[0];
-                st_bijection[i] += (st_dtax[sel].dval - st_info->sortvars_mins[k]) * offsets[k];
-            }
-
-            // Read in the rest of the variables to union structure
-            for (k = ksort; k < kvars; k++) {
-                sel = i * kvars + k;
-                if ( (ilen = ltypes[k]) ) {
-                    if ( (rc = SF_sdata(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
-                }
-                else {
-                    if ( (rc = SF_vdata(1 + k, i + in1, &(st_dtax[sel].dval))) ) return(rc);
-                }
+                sel = i * ksort + k;
+                if ( (rc = SF_vdata(1 + k, i + in1, &z)) ) return(rc);
+                if ( SF_is_missing(z) ) z = st_info->sortvars_maxs[0];
+                st_bijection[i] += (z - st_info->sortvars_mins[k]) * offsets[k];
+                st_int[sel] = (int) z;
             }
         }
-        if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (1): Read in copy of data");
+        if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (1): Read in sort vars");
 
         // Radix Sort
         // ----------
@@ -141,12 +167,33 @@ int sf_msort(struct StataInfo *st_info)
         if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (2): Sorted bijection");
         free (st_bijection);
 
+        // Read in rest of data
+        // --------------------
+
+        for (i = 0; i < N; i++) {
+            for (k = ksort; k < kvars; k++) {
+                sel = st_index[i] * krest + k - ksort;
+                if ( (ilen = ltypes[k]) ) {
+                    if ( (rc = SF_sdata(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
+                }
+                else {
+                    if ( (rc = SF_vdata(1 + k, i + in1, &(st_dtax[sel].dval))) ) return(rc);
+                }
+            }
+        }
+        if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (1): Read in rest of data");
+
         // Write back the data using index
         // -------------------------------
 
         for (i = 0; i < N; i++) {
-            for (k = 0; k < kvars; k++) {
-                sel = st_index[i] * kvars + k;
+            for (k = 0; k < ksort; k++) {
+                sel = st_index[i] * ksort + k;
+                if ( (rc = SF_vstore(1 + k, i + in1, st_int[sel])) ) return(rc);
+            }
+
+            for (k = ksort; k < kvars; k++) {
+                sel = i * krest + k - ksort;
                 if ( ltypes[k] ) {
                     if ( (rc = SF_sstore(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
                 }
@@ -156,12 +203,20 @@ int sf_msort(struct StataInfo *st_info)
             }
         }
         if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (3): Wrote back sorted data");
+        free (st_int);
         free (st_index);
+
+        // Cleanup
+        // -------
+
+        for (i = 0; i < N; i++)
+            for (k = 0; k < krest; k++)
+                if ( ltypes[k + ksort] )
+                    free(st_dtax[i * krest + k].cval);
     }
     else {
 
-        // if ( st_info->kvars_sort_str == 0 ) {
-        if ( 0 ) {
+        if ( (st_info->qsort == 0) & (st_info->kvars_sort_str == 0) ) {
 
             // Read in double sort vars
             // ------------------------
@@ -187,7 +242,7 @@ int sf_msort(struct StataInfo *st_info)
             for (i = 0; i < N; i++) {
                 st_map = (size_t) st_double[i * (ksort + 1) + ksort];
                 for (k = ksort; k < kvars; k++) {
-                    sel = st_map * kvars + k;
+                    sel = st_map * krest + k - ksort;
                     if ( (ilen = ltypes[k]) ) {
                         if ( (rc = SF_sdata(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
                     }
@@ -208,7 +263,7 @@ int sf_msort(struct StataInfo *st_info)
                 }
 
                 for (k = ksort; k < kvars; k++) {
-                    sel = i * kvars + k;
+                    sel = i * krest + k - ksort;
                     if ( ltypes[k] ) {
                         if ( (rc = SF_sstore(1 + k, i + in1, st_dtax[sel].cval)) ) return(rc);
                     }
@@ -220,6 +275,14 @@ int sf_msort(struct StataInfo *st_info)
             if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (3): Wrote back sorted data");
 
             free (st_double);
+
+            // Cleanup
+            // -------
+
+            for (i = 0; i < N; i++)
+                for (k = 0; k < krest; k++)
+                    if ( ltypes[k + ksort] )
+                        free(st_dtax[i * krest + k].cval);
         }
         else {
 
@@ -261,16 +324,16 @@ int sf_msort(struct StataInfo *st_info)
                 }
             }
             if ( st_info->benchmark ) sf_running_timer (&timer, "\tSort (3): Wrote back sorted data");
+
+            // Cleanup
+            // -------
+
+            for (i = 0; i < N; i++)
+                for (k = 0; k < kvars; k++)
+                    if ( ltypes[k] )
+                        free(st_dtax[i * kvars + k].cval);
         }
     }
-
-    // Cleanup
-    // -------
-
-    for (i = 0; i < N; i++)
-        for (k = 0; k < kvars; k++)
-            if ( ltypes[k] )
-                free(st_dtax[i * kvars + k].cval);
 
     free (st_dtax);
     free (ltypes);

@@ -4,7 +4,7 @@
 capture program drop qsort
 program define qsort
     version 13
-    syntax varlist(min = 1), [Verbose Benchmark overhead]
+    syntax varlist(min = 1), [Verbose Benchmark overhead qsort]
     if ( "`c(os)'" != "Unix" ) di as err "Not available for `c(os)`; only Unix."
 
     * Verbose and benchmark printing
@@ -24,6 +24,7 @@ program define qsort
         local benchmark = 1
     }
 
+    scalar __qsort_qsort     = ( "`qsort'" == "qsort" )
     scalar __qsort_verbose   = `verbose'
     scalar __qsort_benchmark = `benchmark'
 

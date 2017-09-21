@@ -27,8 +27,8 @@ set rmsg on
 use /tmp/qsort, clear
 * gen testing = "This is a very long string; I don't see how mem wouldn't go through the roof."
 * desc
-* expand 3
-* replace dummy = runiform()
+expand 3
+replace dummy = runiform()
 * sort rstr x rst2 y dummy
 * cap drop st_idx
 * gen st_idx = _n
@@ -38,7 +38,7 @@ use /tmp/qsort, clear
 cap noi qsort x y dummy, v b
 cap noi qsort idx, v b
 cap noi qsort x idx, v b
-cap noi qsort idx, v b
-cap noi qsort rstr x rst2 y dummy, v b
-l if st_idx != _n
-assert st_idx == _n
+* cap noi qsort idx, v b
+* cap noi qsort rstr x rst2 y dummy, v b
+* l if st_idx != _n
+* assert st_idx == _n
