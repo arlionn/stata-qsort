@@ -40,7 +40,7 @@ Note:  Your site can add messages to the introduction by editing the file
 . * sysuse auto,  clear
 . * set rmsg on
 . * clear
-. * set obs 1000000
+. * set obs 2000000
 . * * set obs 100000
 . * gen x = floor(rnormal())
 . * gen y = rnormal()
@@ -49,27 +49,46 @@ Note:  Your site can add messages to the introduction by editing the file
 . * replace rstr = rstr + "s"
 . * replace rst2 = rst2 + "someting longer"
 . * gen double id2 = _n
-. * gen byte dummy = 0
+. * gen byte dummy = runiform()
 . * gen idx = _n
 . * save /tmp/qsort, replace
 . 
 . set rmsg on
-r; t=0.00 13:51:39
+r; t=0.00 20:36:53
 
 . * use /tmp/qsort in 1/150000, clear
 . use /tmp/qsort, clear
-r; t=0.03 13:51:39
+r; t=0.04 20:36:53
 
-. expand 5
-(4000000 observations created)
-r; t=0.11 13:51:39
+. * gen testing = "This is a very long string; I don't see how mem wouldn't go through the roof."
+. * desc
+. * expand 3
+. * replace dummy = runiform()
+. sort rstr x rst2 y dummy
+r; t=2.54 20:36:55
 
-. gen rsort = runiform()
-r; t=0.09 13:51:40
+. cap drop st_idx
+r; t=0.00 20:36:55
 
-. * sort rstr x rst2 y rsort
-. * cap drop st_idx
-. * gen st_idx = _n
-. * sort idx
-. cap noi qsort rstr x rst2 y rsort, v b
-plugin call qsort_plugin rstr x rst2 y rsort id2 dummy idx, sort
+. gen st_idx = _n
+r; t=0.06 20:36:55
+
+. sort idx
+r; t=1.82 20:36:57
+
+. cap noi qsort rstr x rst2 y dummy, v b
+plugin call qsort_plugin rstr x rst2 y dummy id2 idx st_idx, sort
+Sort by 2 strings, 3 numeric
+(memory overhead > 171.00MiB)
+        Sort (1): Read in copy of data; 0.280 seconds.
+        Sort (2): Sorted array; 1.492 seconds.
+        Sort (3): Wrote back sorted data; 0.455 seconds.
+r; t=2.24 20:37:00
+
+. * l in 1/10
+. assert st_idx == _n
+r; t=0.04 20:37:00
+
+. 
+end of do-file
+r; t=0.00 20:37:00

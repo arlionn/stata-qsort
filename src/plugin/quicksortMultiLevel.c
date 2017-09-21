@@ -6,24 +6,39 @@
 #define BaseCompareNum(a, b) ( ( (a) > (b) ) - ( (a) < (b) ) )
 #define BaseCompareChar(a, b) ( strcmp(a, b) )
 
-int GenCompareChar (const void *a, const void *b, void *thunk);
-int GenCompareChar (const void *a, const void *b, void *thunk)
+int MultiCompareChar (const void *a, const void *b, void *thunk);
+int MultiCompareChar (const void *a, const void *b, void *thunk)
 {
     int kstart = *(size_t *)thunk;
-    return BaseCompareChar(*((char **)a + kstart), *((char **)b + kstart));
+    // return BaseCompareChar(*((char **)a + kstart), *((char **)b + kstart));
+    MixedUnion *aa = (MixedUnion *)a + kstart;
+    MixedUnion *bb = (MixedUnion *)b + kstart;
+    return BaseCompareChar(aa->cval, bb->cval);
 }
 
-int GenCompareNum (const void *a, const void *b, void *thunk);
-int GenCompareNum (const void *a, const void *b, void *thunk)
+int MultiCompareNum (const void *a, const void *b, void *thunk);
+int MultiCompareNum (const void *a, const void *b, void *thunk)
 {
     int kstart = *(size_t *)thunk;
-    const double aa = *((double*)*((void **)a + kstart));
-    const double bb = *((double*)*((void **)b + kstart));
-    return BaseCompareNum(aa, bb);
+    MixedUnion *aa = (MixedUnion *)a + kstart;
+    MixedUnion *bb = (MixedUnion *)b + kstart;
+    return BaseCompareNum(aa->dval, bb->dval);
+    // const double aa = *((double*)*((void **)a + kstart));
+    // const double bb = *((double*)*((void **)b + kstart));
+    // return BaseCompareNum(aa, bb);
 }
 
 
-void MixedQuicksort (
+void MultiQuicksort (
+    void *start,
+    size_t N,
+    size_t kstart,
+    size_t kend,
+    size_t elsize,
+    size_t *ltypes
+);
+
+void MultiQuicksort (
     void *start,
     size_t N,
     size_t kstart,
@@ -39,7 +54,7 @@ void MixedQuicksort (
         start,
         N,
         elsize,
-        ( (ischar = (ltypes[kstart] > 0)) )? GenCompareChar: GenCompareNum,
+        ( (ischar = (ltypes[kstart] > 0)) )? MultiCompareChar: MultiCompareNum,
         &kstart
     );
 
@@ -53,19 +68,19 @@ loop:
     j = 1;
     if ( ischar ) {
         for (i = start + elsize; i < end; i += elsize) {
-            if ( GenCompareChar(i - elsize, i, &kstart) ) break;
+            if ( MultiCompareChar(i - elsize, i, &kstart) ) break;
             j++;
         }
     }
     else {
         for (i = start + elsize; i < end; i += elsize) {
-            if ( GenCompareNum(i - elsize, i, &kstart) ) break;
+            if ( MultiCompareNum(i - elsize, i, &kstart) ) break;
             j++;
         }
     }
 
     if ( j > 1 ) {
-        MixedQuicksort (
+        MultiQuicksort (
             start,
             j,
             kstart + 1,

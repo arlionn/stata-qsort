@@ -9,7 +9,7 @@ set linesize 128
 * sysuse auto,  clear
 * set rmsg on
 * clear
-* set obs 1000000
+* set obs 2000000
 * * set obs 100000
 * gen x = floor(rnormal())
 * gen y = rnormal()
@@ -18,18 +18,21 @@ set linesize 128
 * replace rstr = rstr + "s"
 * replace rst2 = rst2 + "someting longer"
 * gen double id2 = _n
-* gen byte dummy = 0
+* gen byte dummy = runiform()
 * gen idx = _n
 * save /tmp/qsort, replace
 
 set rmsg on
 * use /tmp/qsort in 1/150000, clear
 use /tmp/qsort, clear
-expand 5
-gen rsort = runiform()
-* sort rstr x rst2 y rsort
-* cap drop st_idx
-* gen st_idx = _n
-* sort idx
-cap noi qsort rstr x rst2 y rsort, v b
-* assert st_idx == _n
+* gen testing = "This is a very long string; I don't see how mem wouldn't go through the roof."
+* desc
+* expand 3
+* replace dummy = runiform()
+sort rstr x rst2 y dummy
+cap drop st_idx
+gen st_idx = _n
+sort idx
+cap noi qsort rstr x rst2 y dummy, v b
+* l in 1/10
+assert st_idx == _n
