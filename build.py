@@ -5,7 +5,7 @@
 # Program: build.py
 # Author:  Mauricio Caceres Bravo <mauricio.caceres.bravo@gmail.com>
 # Created: Sun Jun 18 15:18:20 EDT 2017
-# Updated: Sun Jul 30 20:26:15 EDT 2017
+# Updated: Fri Sep 29 12:43:48 EDT 2017
 # Purpose: Main build file for qsort (copies contents into ./build and
 #          puts a .zip file in ./releases)
 
@@ -179,7 +179,6 @@ with open(path.join("src", "ado", "qsort.ado"), 'r') as f:
     version = search('(\d+\.?)+', line).group(0)
 
 plugins = ["qsort_unix.plugin",
-           "qsort_unix_multi.plugin",
            "qsort_windows.plugin",
            "qsort_macosx.plugin"]
 plugbak = plugins.copy()

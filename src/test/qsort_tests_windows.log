@@ -1,0 +1,344 @@
+--------------------------------------------------------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  C:\cygwin64\home\mauricio\qsort\build\qsort_tests_windows.log
+  log type:  text
+ opened on:  29 Sep 2017, 10:07:16
+
+. do qsort_tests.do
+
+. * ---------------------------------------------------------------------
+. * Project: qsort
+. * Program: qsort_tests.do
+. * Author:  Mauricio Caceres Bravo <mauricio.caceres.bravo@gmail.com>
+. * Created: Sun Jul 30 20:41:49 EDT 2017
+. * Updated: Fri Sep 29 12:42:53 EDT 2017
+. * Purpose: Unit tests for qsort
+. * Version: 0.1.0
+. * Manual:  help qsort
+. 
+. * Stata start-up options
+. * ----------------------
+. 
+. version 13
+
+. clear all
+
+. set more off
+
+. set varabbrev off
+
+. * set seed 42
+. set seed 1729
+
+. set linesize 128
+
+. ssc install ralpha
+checking ralpha consistency and verifying not already installed...
+all files already exist and are up to date.
+
+. 
+. * Main program wrapper
+. * --------------------
+. 
+. program main
+  1.     syntax, [CAPture NOIsily *]
+  2. 
+.     * Set up
+.     * ------
+. 
+.     local  progname tests
+  3.     local  start_time "$S_TIME $S_DATE"
+  4.     di "Start: `start_time'"
+  5. 
+.     * Run the things
+.     * --------------
+. 
+.     `capture' `noisily' {
+  6.         * do qsort_checks.do
+. 
+.         di ""
+  7.         di "-------------------------------------"
+  8.         di "Basic unit-tests $S_TIME $S_DATE"
+  9.         di "-------------------------------------"
+ 10. 
+.         unit_test, `noisily' test(checks_options_qsort)
+ 11. 
+.         di ""
+ 12.         di "--------------------------------------------------"
+ 13.         di "Consistency checks (vs qsort) $S_TIME $S_DATE"
+ 14.         di "--------------------------------------------------"
+ 15. 
+.         consistency_qsort
+ 16.     }
+ 17.     local rc = _rc
+ 18. 
+.     exit_message, rc(`rc') progname(`progname') start_time(`start_time') `capture'
+ 19.     exit `rc'
+ 20. end
+
+. 
+. * ---------------------------------------------------------------------
+. * Aux programs
+. 
+. capture program drop exit_message
+
+. program exit_message
+  1.     syntax, rc(int) progname(str) start_time(str) [CAPture]
+  2.     local end_time "$S_TIME $S_DATE"
+  3.     local time     "Start: `start_time'" _n(1) "End: `end_time'"
+  4.     di ""
+  5.     if (`rc' == 0) {
+  6.         di "End: $S_TIME $S_DATE"
+  7.         local paux      ran
+  8.         local message "`progname' finished running" _n(2) "`time'"
+  9.         local subject "`progname' `paux'"
+ 10.     }
+ 11.     else if ("`capture'" == "") {
+ 12.         di "WARNING: $S_TIME $S_DATE"
+ 13.         local paux ran with non-0 exit status
+ 14.         local message "`progname' ran but Stata gave error code r(`rc')" _n(2) "`time'"
+ 15.         local subject "`progname' `paux'"
+ 16.     }
+ 17.     else {
+ 18.         di "ERROR: $S_TIME $S_DATE"
+ 19.         local paux ran with errors
+ 20.         local message "`progname' stopped with error code r(`rc')" _n(2) "`time'"
+ 21.         local subject "`progname' `paux'"
+ 22.     }
+ 23.     di "`subject'"
+ 24.     di ""
+ 25.     di "`message'"
+ 26. end
+
+. 
+. * Wrapper for easy timer use
+. cap program drop mytimer
+
+. program mytimer, rclass
+  1.     * args number what step
+.     syntax anything, [minutes ts]
+  2. 
+.     tokenize `anything'
+  3.     local number `1'
+  4.     local what   `2'
+  5.     local step   `3'
+  6. 
+.     if ("`what'" == "end") {
+  7.         qui {
+  8.             timer clear `number'
+  9.             timer off   `number'
+ 10.         }
+ 11.         if ("`ts'" == "ts") mytimer_ts `step'
+ 12.     }
+ 13.     else if ("`what'" == "info") {
+ 14.         qui {
+ 15.             timer off `number'
+ 16.             timer list `number'
+ 17.         }
+ 18.         local seconds = r(t`number')
+ 19.         local prints  `:di trim("`:di %21.2gc `seconds''")' seconds
+ 20.         if ("`minutes'" != "") {
+ 21.             local minutes = `seconds' / 60
+ 22.             local prints  `:di trim("`:di %21.3gc `minutes''")' minutes
+ 23.         }
+ 24.         mytimer_ts Step `step' took `prints'
+ 25.         qui {
+ 26.             timer clear `number'
+ 27.             timer on    `number'
+ 28.         }
+ 29.     }
+ 30.     else {
+ 31.         qui {
+ 32.             timer clear `number'
+ 33.             timer on    `number'
+ 34.             timer off   `number'
+ 35.             timer list  `number'
+ 36.             timer on    `number'
+ 37.         }
+ 38.         if ("`ts'" == "ts") mytimer_ts `step'
+ 39.     }
+ 40. end
+
+. 
+. capture program drop mytimer_ts
+
+. program mytimer_ts
+  1.     display _n(1) "{hline 79}"
+  2.     if ("`0'" != "") display `"`0'"'
+  3.     display `"        Base: $S_FN"'
+  4.     display  "        In memory: `:di trim("`:di %21.0gc _N'")' observations"
+  5.     display  "        Timestamp: $S_TIME $S_DATE"
+  6.     display  "{hline 79}" _n(1)
+  7. end
+
+. 
+. capture program drop unit_test
+
+. program unit_test
+  1.     syntax, test(str) [NOIsily tab(int 4)]
+  2.     local tabs `""'
+  3.     forvalues i = 1 / `tab' {
+  4.         local tabs "`tabs' "
+  5.     }
+  6.     cap `noisily' `test'
+  7.     if ( _rc ) {
+  8.         di as error `"`tabs'test(failed): `test'"'
+  9.         exit _rc
+ 10.     }
+ 11.     else di as txt `"`tabs'test(passed): `test'"'
+ 12. end
+
+. 
+. capture program drop checks_options_qsort
+
+. program checks_options_qsort
+  1.     syntax, [tol(real 1e-6) NOIsily *]
+  2.     di _n(1) "{hline 80}" _n(1) "checks_options_qsort, `options'" _n(1) "{hline 80}" _n(1)
+  3.     sysuse auto
+  4.     gen idx = _n
+  5.     qsort -foreign rep78 make -mpg
+  6.     qsort idx
+  7.     qsort -foreign rep78, stable
+  8.     qsort idx, qsort
+  9.     qsort foreign rep78 mpg
+ 10.     qsort idx, v b
+ 11. end
+
+. 
+. capture program drop consistency_qsort
+
+. program consistency_qsort
+  1.     syntax, [tol(real 1e-6) NOIsily *]
+  2. 
+.     cap gen_data, n(100000)
+  3.     expand 10
+  4. 
+.     compare_sort str_12
+  5.     compare_sort str_12 str_32
+  6.     compare_sort str_12 str_32 str_4
+  7. 
+.     compare_sort double1
+  8.     compare_sort double1 double2
+  9.     compare_sort double1 double2 double3
+ 10. 
+.     compare_sort int1
+ 11.     compare_sort int1 int2
+ 12.     compare_sort int1 int2 int3
+ 13. 
+.     compare_sort int1 str_32 double1
+ 14.     compare_sort int1 str_32 double1 int2 str_12 double2 
+ 15.     compare_sort int1 str_32 double1 int2 str_12 double2 int3 str_4 double3
+ 16. 
+.     di _n(1) "{hline 80}" _n(1) "consistency_qsort, `options'" _n(1) "{hline 80}" _n(1)
+ 17. end
+
+. 
+. capture program drop gen_data
+
+. program gen_data
+  1.     syntax, [n(int 100)]
+  2.     clear
+  3.     set obs `n'
+  4.     qui ralpha str_long,  l(5)
+  5.     qui ralpha str_mid,   l(3)
+  6.     qui ralpha str_short, l(1)
+  7.     gen str32 str_32   = str_long + "this is some string padding"
+  8.     gen str12 str_12   = str_mid  + "padding" + str_short + str_short
+  9.     gen str4  str_4    = str_mid  + str_short
+ 10.                        
+.     gen long int1  = floor(rnormal())
+ 11.     gen long int2  = floor(uniform() * 1000)
+ 12.     gen long int3  = floor(rnormal() * 5 + 10)
+ 13. 
+.     gen double double1 = rnormal()
+ 14.     gen double double2 = uniform() * 1000
+ 15.     gen double double3 = rnormal() * 5 + 10
+ 16. end
+
+. 
+. capture program drop compare_sort
+
+. program compare_sort, rclass
+  1.     tempvar ix
+  2.     gen long `ix' = _n
+  3. 
+.     timer clear
+  4.     preserve
+  5.         timer on 42
+  6.         sort `0' `ix'
+  7.         timer off 42
+  8.         tempfile file_sort
+  9.         qui save `file_sort'
+ 10.     restore
+ 11.     qui timer list
+ 12.     local time_sort = `:di %9.2f r(t42)'
+ 13. 
+.     timer clear
+ 14.     preserve
+ 15.         timer on 43
+ 16.         qui qsort `0' `ix', v b
+ 17.         timer off 43
+ 18.         cf * using `file_sort'
+ 19.     restore
+ 20.     qui timer list
+ 21.     local time_qsort = `:di %9.2f r(t43)'
+ 22. 
+.     local N = trim("`: di %15.0gc _N'")
+ 23.     local r = `:di %9.2f `time_sort' / `time_qsort''
+ 24.     di "    benchmark (obs: `N', ratio: `r', varlist: `0') sort: `time_sort', qsort: `time_qsort'"
+ 25.     return scalar time_sort  = `time_sort'
+ 26.     return scalar time_qsort = `time_qsort'
+ 27. end
+
+. 
+. * ---------------------------------------------------------------------
+. * Run the things
+. 
+. main
+Start: 10:07:36 29 Sep 2017
+
+-------------------------------------
+Basic unit-tests 10:07:36 29 Sep 2017
+-------------------------------------
+    test(passed): checks_options_qsort
+
+--------------------------------------------------
+Consistency checks (vs qsort) 10:07:36 29 Sep 2017
+--------------------------------------------------
+(900000 observations created)
+    benchmark (obs: 1,000,000, ratio: 1.53, varlist: str_12) sort: 3.06, qsort: 2
+    benchmark (obs: 1,000,000, ratio: 1.47, varlist: str_12 str_32) sort: 3.94, qsort: 2.68
+    benchmark (obs: 1,000,000, ratio: 1.32, varlist: str_12 str_32 str_4) sort: 3.03, qsort: 2.29
+    benchmark (obs: 1,000,000, ratio: 1.51, varlist: double1) sort: 2.55, qsort: 1.69
+    benchmark (obs: 1,000,000, ratio: 1.86, varlist: double1 double2) sort: 2.59, qsort: 1.39
+    benchmark (obs: 1,000,000, ratio: 1.86, varlist: double1 double2 double3) sort: 2.83, qsort: 1.52
+    benchmark (obs: 1,000,000, ratio: 2.25, varlist: int1) sort: 2.56, qsort: 1.14
+    benchmark (obs: 1,000,000, ratio: 1.76, varlist: int1 int2) sort: 2.88, qsort: 1.64
+    benchmark (obs: 1,000,000, ratio: 2.09, varlist: int1 int2 int3) sort: 2.72, qsort: 1.3
+    benchmark (obs: 1,000,000, ratio: 1.66, varlist: int1 str_32 double1) sort: 3.55, qsort: 2.14
+    benchmark (obs: 1,000,000, ratio: 1.23, varlist: int1 str_32 double1 int2 str_12 double2) sort: 3.02, qsort: 2.45
+    benchmark (obs: 1,000,000, ratio: 1.23, varlist: int1 str_32 double1 int2 str_12 double2 int3 str_4 double3) sort: 4.05, qso
+> rt: 3.3
+
+--------------------------------------------------------------------------------
+consistency_qsort, 
+--------------------------------------------------------------------------------
+
+
+End: 10:10:33 29 Sep 2017
+tests ran
+
+tests finished running
+
+Start: 10:07:36 29 Sep 2017
+End: 10:10:33 29 Sep 2017
+
+. 
+end of do-file
+
+. log close _all
+      name:  <unnamed>
+       log:  C:\cygwin64\home\mauricio\qsort\build\qsort_tests_windows.log
+  log type:  text
+ closed on:  29 Sep 2017, 10:11:30
+--------------------------------------------------------------------------------------------------------------------------------

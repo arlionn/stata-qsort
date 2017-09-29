@@ -27,13 +27,6 @@
 #include "qsort_utils.c"
 #include "qsort_generic.c"
 
-// -DGMUTI=1 flag compiles multi-threaded version of the plugin
-// #if GMULTI
-// #include "qsort_multi.c"
-// #else
-// #include "qsort_single.c"
-// #endif
-
 STDLL stata_call(int argc, char *argv[])
 {
     if ( argc < 1 ) {
@@ -65,6 +58,11 @@ STDLL stata_call(int argc, char *argv[])
         // sf_msort handles whether to sort by integers or to do a generic sort
         if ( (rc = sf_parse_info(&st_info)) ) return (rc);
         if ( (rc = sf_msort (&st_info)) ) return (rc);
+        free (st_info.sortvars_lens);
+        free (st_info.sortvars_mins);
+        free (st_info.sortvars_maxs);
+        free (st_info.pos_num_sortvars);
+        free (st_info.pos_str_sortvars);
         return(0);
     }
 
@@ -95,17 +93,6 @@ int sf_parse_info (struct StataInfo *st_info)
     else {
         kvars_sort = (int) kvars_sort_double;
     }
-
-    // Number of variables left
-    int kvars_rest;
-    ST_double kvars_rest_double ;
-    if ( (rc = SF_scal_use("__qsort_kvars_rest", &kvars_rest_double)) ) {
-        return (rc);
-    }
-    else {
-        kvars_rest = (int) kvars_rest_double;
-    }
-    int kvars_rest_start = kvars_sort + 1;
 
     // Force mixed qsort (no smart optimizations)
     int qsort;
@@ -255,58 +242,8 @@ int sf_parse_info (struct StataInfo *st_info)
     }
 
     /*********************************************************************
-     *                    Parse rest of the variables                    *
-     *********************************************************************/
-
-    st_info->restvars_lens = calloc(kvars_rest, sizeof st_info->restvars_lens);
-    if ( st_info->restvars_lens == NULL ) return(sf_oom_error("sf_parse_info", "st_info->restvars_lens"));
-
-    // Get lengths of rest variables
-    size_t strmax_rest = 0;
-    double restvars_lens_double[kvars_rest];
-    if ( (rc = sf_get_vector("__qsort_restvars", restvars_lens_double)) ) return(rc);
-    for (i = 0; i < kvars_rest; i++) {
-        st_info->restvars_lens[i] = (int) restvars_lens_double[i];
-        if ( st_info->restvars_lens[i] > strmax_rest ) strmax_rest = st_info->restvars_lens[i];
-    }
-
-    // Get count of numeric and string rest variables
-    size_t kvars_rest_str = 0;
-    for (i = 0; i < kvars_rest; i++) {
-        kvars_rest_str += (st_info->restvars_lens[i] > 0);
-    }
-    size_t kvars_rest_num = kvars_rest - kvars_rest_str;
-
-    // Position of string and numeric variables
-    st_info->pos_num_restvars = calloc(kvars_rest_num,  sizeof st_info->pos_num_restvars);
-    st_info->pos_str_restvars = calloc(kvars_rest_str,  sizeof st_info->pos_str_restvars);
-
-    if ( st_info->pos_num_restvars == NULL ) return(sf_oom_error("sf_parse_info", "st_info->pos_num_restvars"));
-    if ( st_info->pos_str_restvars == NULL ) return(sf_oom_error("sf_parse_info", "st_info->pos_str_restvars"));
-
-    double pos_str_restvars_double[kvars_rest_str];
-    double pos_num_restvars_double[kvars_rest_num];
-
-    // pos_str_restvars[k] gives the position in the rest variables of the kth string variable
-    if ( kvars_rest_str > 0 ) {
-        if ( (rc = sf_get_vector("__qsort_strpos_rest", pos_str_restvars_double)) ) return(rc);
-        for (k = 0; k < kvars_rest_str; k++)
-            st_info->pos_str_restvars[k] = (int) pos_str_restvars_double[k];
-    }
-
-    // pos_num_restvars[k] gives the position in the rest variables of the kth numeric variable
-    if ( kvars_rest_num > 0 ) {
-        if ( (rc = sf_get_vector("__qsort_numpos_rest", pos_num_restvars_double)) ) return(rc);
-        for (k = 0; k < kvars_rest_num; k++)
-            st_info->pos_num_restvars[k] = (int) pos_num_restvars_double[k];
-    }
-    
-    /*********************************************************************
      *      Parse whether to sort in ascending or descending order       *
      *********************************************************************/
-
-    st_info->invert = calloc(kvars_rest_str, sizeof st_info->invert);
-    if ( st_info->invert == NULL ) return(sf_oom_error("sf_parse_info", "st_info->invert"));
 
     double invert_double[kvars_sort];
     if ( (rc = sf_get_vector("__qsort_invert", invert_double)) ) return(rc);
@@ -320,10 +257,6 @@ int sf_parse_info (struct StataInfo *st_info)
     st_info->in1              = in1;
     st_info->in2              = in2;
     st_info->N                = N;
-    st_info->kvars_rest       = kvars_rest;
-    st_info->kvars_rest_start = kvars_rest_start;
-    st_info->kvars_rest_num   = kvars_rest_num;
-    st_info->kvars_rest_str   = kvars_rest_str;
     st_info->kvars_sort       = kvars_sort;
     st_info->kvars_sort_num   = kvars_sort_num;
     st_info->kvars_sort_str   = kvars_sort_str;
@@ -332,7 +265,6 @@ int sf_parse_info (struct StataInfo *st_info)
     st_info->benchmark        = benchmark;
     st_info->integers_ok      = integers_ok;
     st_info->strmax           = strmax;
-    st_info->strmax_rest      = strmax_rest;
     st_info->sortvars_minlen  = sortvars_minlen;
     st_info->sortvars_maxlen  = sortvars_maxlen;
 
