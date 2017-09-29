@@ -21,6 +21,5 @@ typedef union {
 } MixedUnion;
 
 int sf_msort(struct StataInfo *st_info);
-int mf_compare_mixed (const void *a, const void *b, void *arg);
 
 #endif

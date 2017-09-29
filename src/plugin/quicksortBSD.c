@@ -97,7 +97,7 @@ med3(char *a, char *b, char *c, cmp_t *cmp, void *thunk)
 }
 
 void
-quicksort(void *a, size_t n, size_t es, cmp_t *cmp, void *thunk)
+quicksortBSD(void *a, size_t n, size_t es, cmp_t *cmp, void *thunk)
 {
 	char *pa, *pb, *pc, *pd, *pl, *pm, *pn;
 	size_t d, r;
@@ -106,7 +106,7 @@ quicksort(void *a, size_t n, size_t es, cmp_t *cmp, void *thunk)
 
 loop:	SWAPINIT(a, es);
 	swap_cnt = 0;
-	if (n < 7) {
+	if (n < 9) {
 		for (pm = (char *)a + es; pm < (char *)a + n * es; pm += es)
 			for (pl = pm;
 			     pl > (char *)a && CMP(thunk, pl - es, pl) > 0;
@@ -115,7 +115,7 @@ loop:	SWAPINIT(a, es);
 		return;
 	}
 	pm = (char *)a + (n / 2) * es;
-	if (n > 7) {
+	if (n > 9) {
 		pl = a;
 		pn = (char *)a + (n - 1) * es;
 		if (n > 40) {
@@ -169,7 +169,7 @@ loop:	SWAPINIT(a, es);
 	r = min(pd - pc, pn - pd - es);
 	vecswap(pb, pn - r, r);
 	if ((r = pb - pa) > es)
-		quicksort(a, r / es, es, cmp, thunk);
+		quicksortBSD(a, r / es, es, cmp, thunk);
 	if ((r = pd - pc) > es) {
 		/* Iterate rather than recurse to save stack space */
 		a = pn - r;

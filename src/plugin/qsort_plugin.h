@@ -21,11 +21,13 @@ struct StataInfo {
     size_t in2;
     size_t N;
     //
+    int qsort;
     int verbose;
     int benchmark;
     int integers_ok;
     int strmax;
     int strmax_rest;
+    int *invert;
     //
     int kvars_sort;
     int kvars_sort_num;
