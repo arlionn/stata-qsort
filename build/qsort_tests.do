@@ -200,7 +200,7 @@ program consistency_qsort
     compare_sort int1 str_32 double1 int2 str_12 double2
     compare_sort int1 str_32 double1 int2 str_12 double2 int3 str_4 double3
 
-    _n(2)
+    di _n(2)
 
     compare_gsort -str_12
     compare_gsort str_12 -str_32
