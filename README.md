@@ -33,7 +33,7 @@ Installation
 
 I only have access to Stata 13.1, so I impose that to be the minimum.
 ```stata
-net install qsort, from(https://raw.githubusercontent.com/mcaceresb/stata-qsort/develop/build/)
+net install qsort, from(https://raw.githubusercontent.com/mcaceresb/stata-qsort/master/build/)
 * adoupdate, update
 * ado uninstall qsort
 ```
