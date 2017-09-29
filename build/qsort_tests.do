@@ -301,7 +301,7 @@ program compare_gsort, rclass
     qui timer list
     local time_qsort `:di %9.2f r(t43)'
 
-    local N trim("`: di %15.0gc _N'")
+    local N = trim("`: di %15.0gc _N'")
     local r `:di %9.2f `time_sort' / `time_qsort''
     di "    benchmark (obs: `N', ratio: `r', varlist: `0') gsort: `time_sort', qsort: `time_qsort'"
     return scalar time_sort  = `time_sort'
